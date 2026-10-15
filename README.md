@@ -55,11 +55,11 @@ int res = orig(10, 20);
 ds::runtime::uninstall_in_process_hook(*active);
 ```
 
-## internals
+## details
 
-- **.pdata false-positive filtering**: compilers routinely emit switch jump tables and vector constants directly into `.text`. Candidate cave runs (`0xCC`, `0x90`, multi-byte NOPs, `0x00`) are verified against runtime function bounds `[BeginAddress, EndAddress)` via $O(\log N)$ binary search.
-- **rel8 branch widening**: short conditional branches (`70..7F`) and unconditional jumps (`EB`) inside stolen prologues are widened into 32-bit displacements (`0F 8x` and `E9`) inside the relocated trampoline, recalculating branch targets relative to the cave VA.
-- **rip-relative displacement recalculation**: fixes `[rip + disp32]` operands so relocated instructions still reference their original variables and data tables.
-- **2-byte hotpatch short-jump**: detects standard MSVC 5-byte padding preceding function entries (`hook_va - 5`), placing an `E9 <disp32>` jump in the padding and `EB F9` (`jmp short -7`) at function head—stealing only 2 bytes instead of 5+.
-- **multi-hook sub-allocator**: dynamically carves 16-byte aligned slices out of larger alignment caves, tracking remaining capacity so multiple hooks pack into the same cave without stomping each other.
-- **atomic CAS commit & rollback**: patches prologue entry using `_InterlockedCompareExchange64` to prevent instruction tearing across threads, and transactional unhooking restores original bytes and section CRC32 baseline 100%.
+- **.pdata validation**: MSVC puts switch tables and floating point constants straight into `.text`. Cave runs (`0xCC`, `0x90`, multi-byte NOPs, `0x00`) are checked against runtime exception tables `[BeginAddress, EndAddress)` with binary search so we never stomp switch jump targets.
+- **rel8 branch widening**: short jumps (`70..7F` jcc, `EB` jmp) stolen from the prologue get rewritten to 32-bit displacements (`0F 8x` and `E9`) in the trampoline with relocated branch targets.
+- **rip-relative fixups**: `[rip + disp32]` memory operands get displacement recalculation based on cave VA vs target VA.
+- **2-byte hotpatch short-jump**: if standard 5-byte padding (`0xCC`/`0x90`) exists before the function, drops an `E9 <disp32>` in padding and an `EB F9` (`jmp short -7`) at entry, stealing only 2 bytes.
+- **multi-hook sub-allocator**: carves 16-byte aligned slices from caves with remaining capacity tracking so multiple detours share padding.
+- **atomic CAS commit**: patches function entry with `_InterlockedCompareExchange64` to prevent instruction tearing. Transactional unhook restores original bytes and section CRC32 1:1.
