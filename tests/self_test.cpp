@@ -201,21 +201,13 @@ int main() {
         return 1;
     }
 
-    // print discovered caves with full 64-bit VA formatting
-    std::cout << "+-----+----------+------------+--------------------+-------+-------------------------+-------------------+\n";
-    std::cout << "| IDX | SECTION  |    RVA     |         VA         | SIZE  | TYPE                    | STATUS            |\n";
-    std::cout << "+-----+----------+------------+--------------------+-------+-------------------------+-------------------+\n";
     for (size_t i = 0; i < (caves.size() < 6 ? caves.size() : 6); ++i) {
         const auto& c = caves[i];
-        std::cout << "| #" << std::setw(2) << i << " | "
-                  << std::left << std::setw(8) << c.section_name << " | "
-                  << hex32(c.rva) << " | "
-                  << hex64(c.va) << " | "
-                  << std::right << std::setw(5) << c.size << " | "
-                  << std::left << std::setw(23) << ds::cave_scanner::type_name(c.type) << " | "
-                  << (c.verified_inter_function ? "VERIFIED OUTSIDE " : "INSIDE FUNC BODY ") << "|\n";
+        std::cout << "    cave #" << i << ": " << c.section_name << " RVA " << hex32(c.rva)
+                  << " (" << hex64(c.va) << ", " << c.size << " bytes, "
+                  << ds::cave_scanner::type_name(c.type) << ")\n";
     }
-    std::cout << "+-----+----------+------------+--------------------+-------+-------------------------+-------------------+\n\n";
+    std::cout << "\n";
 
     // initialize stateful cave sub-allocator
     std::cout << "[*] initializing stateful multi-hook cave sub-allocator ...\n";
@@ -454,24 +446,12 @@ int main() {
     assert(post_unhook_crc == baseline_crc && "post-unhook CRC32 must match pre-hook baseline 100%!");
     std::cout << "[PASS] post-unhook CRC32 matches baseline 100% (" << hex32(post_unhook_crc) << " == " << hex32(baseline_crc) << ")\n\n";
 
-    // 7. verification summary table
-    std::cout << "========================================================================\n";
-    std::cout << "                        VERIFICATION SUMMARY TABLE                      \n";
-    std::cout << "========================================================================\n";
-    std::cout << "+-----------------------+------------+------------+-------+------------+--------+\n";
-    std::cout << "| TARGET FUNCTION       | TARGET RVA |  CAVE RVA  | STOLEN| TRAMP RVA  | STATUS |\n";
-    std::cout << "+-----------------------+------------+------------+-------+------------+--------+\n";
-    std::cout << "| target_rip_global     | " << hex32(fn1_rva) << " | " << hex32(cave1.rva) << " | "
-              << std::setw(5) << stolen1 << " | " << hex32(img.va_to_rva(hook1->trampoline_va)) << " | [PASS] |\n";
-    std::cout << "| target_long_prologue  | " << hex32(fn2_rva) << " | " << hex32(cave2.rva) << " | "
-              << std::setw(5) << stolen2 << " | " << hex32(img.va_to_rva(hook2->trampoline_va)) << " | [PASS] |\n";
-    std::cout << "| target_short_branch   | " << hex32(fn3_rva) << " | " << hex32(cave3.rva) << " | "
-              << std::setw(5) << stolen3 << " | " << hex32(img.va_to_rva(hook3->trampoline_va)) << " | [PASS] |\n";
-    std::cout << "+-----------------------+------------+------------+-------+------------+--------+\n";
-    std::cout << "All 3 live hooks installed, multi-hook cave sub-allocator verified.\n";
-    std::cout << "2-byte hotpatch short-jump synthesized and validated.\n";
-    std::cout << "Transactional unhook restored original bytes and matched CRC32 baseline 100%.\n";
-    std::cout << "Zero heap allocations, zero unbacked memory pages, CET-safe.\n";
+    std::cout << "[+] self-test complete:\n"
+              << "    hook 1 (rip global):      passed (stolen=" << stolen1 << ", tramp=" << hex32(img.va_to_rva(hook1->trampoline_va)) << ")\n"
+              << "    hook 2 (long prologue):   passed (stolen=" << stolen2 << ", tramp=" << hex32(img.va_to_rva(hook2->trampoline_va)) << ")\n"
+              << "    hook 3 (rel8 widening):   passed (stolen=" << stolen3 << ", tramp=" << hex32(img.va_to_rva(hook3->trampoline_va)) << ")\n"
+              << "    hotpatch short-jump:      verified\n"
+              << "    transactional unhook:     100% text crc match (" << hex32(post_unhook_crc) << ")\n";
 
     return 0;
 }

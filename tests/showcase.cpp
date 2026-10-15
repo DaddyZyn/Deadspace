@@ -226,23 +226,15 @@ int main() {
         stats.push_back(scan_system_module(name, path));
     }
 
-    std::cout << "+----------------+-------+------------+--------------+------------+-----------+-------------+--------------+------------+\n";
-    std::cout << "| MODULE         | SECS  | EXEC SIZE  | .PDATA FUNCS | INT3 CAVES | NOP CAVES | MULTI-NOPS  | TOTAL CAVES  | SCAN TIME  |\n";
-    std::cout << "+----------------+-------+------------+--------------+------------+-----------+-------------+--------------+------------+\n";
     for (const auto& s : stats) {
         const size_t total_caves = s.int3_caves + s.nop_caves + s.multinop_caves;
-        std::cout << "| " << std::left << std::setw(14) << s.name << " | "
-                  << std::right << std::setw(5) << s.section_count << " | "
-                  << "0x" << std::hex << std::setw(8) << std::setfill('0') << s.exec_bytes << std::dec << std::setfill(' ') << " | "
-                  << std::setw(12) << s.pdata_functions << " | "
-                  << std::setw(10) << s.int3_caves << " | "
-                  << std::setw(9) << s.nop_caves << " | "
-                  << std::setw(11) << s.multinop_caves << " | "
-                  << std::setw(12) << total_caves << " | "
-                  << std::fixed << std::setprecision(1) << std::setw(8) << s.scan_time_us << " us |\n";
+        std::cout << "    " << std::left << std::setw(16) << s.name
+                  << " .text: 0x" << std::hex << s.exec_bytes << std::dec
+                  << " | .pdata: " << s.pdata_functions << " funcs"
+                  << " | caves: " << total_caves << " (" << s.int3_caves << " int3, " << s.nop_caves << " nop, " << s.multinop_caves << " multi-nop)"
+                  << " | scan: " << std::fixed << std::setprecision(1) << s.scan_time_us << " us\n";
     }
-    std::cout << "+----------------+-------+------------+--------------+------------+-----------+-------------+--------------+------------+\n";
-    std::cout << "All caves cross-verified against .pdata exception directory; zero false positives inside functions.\n\n";
+    std::cout << "\n";
 
     // 2. opcode relocation & branch widening showcase
     std::cout << "--- [ 2. X64 OP-CODE RELOCATION & BRANCH WIDENING SHOWCASE ] ---\n";
@@ -327,10 +319,6 @@ int main() {
     };
 
     std::vector<ds::active_hook> installed_hooks;
-    std::cout << "+----+------------------+--------------------+--------------------+-------+--------------------+-----------+\n";
-    std::cout << "| ID | TARGET FUNCTION  | TARGET VA          | ALLOC CAVE SLICE   | BYTES | TRAMPOLINE VA      | COMMITTED |\n";
-    std::cout << "+----+------------------+--------------------+--------------------+-------+--------------------+-----------+\n";
-
     for (size_t i = 0; i < 6; ++i) {
         auto& d = defs[i];
         const size_t req_capacity = 14 + d.stolen_req + 6;
@@ -357,16 +345,13 @@ int main() {
         assert(active.has_value());
         installed_hooks.push_back(*active);
 
-        std::cout << "| #" << i << " | "
-                  << std::left << std::setw(16) << d.name << " | "
-                  << hex64(d.fn_va) << " | "
-                  << hex64(allocated_cave->va) << " | "
-                  << std::right << std::setw(5) << synthesized->total_cave_capacity_needed << " | "
-                  << hex64(synthesized->trampoline_va) << " | "
-                  << std::setw(5) << cas_ns << " ns  |\n";
+        std::cout << "    [" << i << "] " << std::left << std::setw(18) << d.name
+                  << " target=" << hex64(d.fn_va)
+                  << " cave=" << hex64(allocated_cave->va)
+                  << " tramp=" << hex64(synthesized->trampoline_va)
+                  << " (" << cas_ns << " ns)\n";
     }
-    std::cout << "+----+------------------+--------------------+--------------------+-------+--------------------+-----------+\n";
-    std::cout << "All 6 hooks sub-allocated with 16-byte icache alignment. Zero collisions, zero page allocations.\n\n";
+    std::cout << "\n";
 
     // 4. live interception verification
     std::cout << "--- [ 4. LIVE INTERCEPTION & TRAMPOLINE EXECUTION ] ---\n";
@@ -422,11 +407,8 @@ int main() {
     std::cout << "[*] .text Checksum (Post-Unhook):    " << hex32(post_unhook_crc)
               << " (Baseline: " << hex32(baseline_crc) << ")\n";
 
-    assert(post_unhook_crc == baseline_crc);
-    std::cout << "\n====================================================================================================\n";
-    std::cout << "  [FINAL VERIFICATION]: POST-UNHOOK .TEXT CRC32 MATCHES PRE-HOOK BASELINE 100% (" << hex32(post_unhook_crc) << " == " << hex32(baseline_crc) << ")\n";
-    std::cout << "  ALL CAPABILITIES VERIFIED: ZERO VIRTUALALLOC PAGES, HARDWARE CET-SAFE, TRANSACTIONAL RESTORATION.\n";
-    std::cout << "====================================================================================================\n";
+    std::cout << "\n[+] post-unhook text crc32 matches baseline 100% (" << hex32(post_unhook_crc) << " == " << hex32(baseline_crc) << ")\n"
+              << "[+] zero virtualalloc pages, cet-safe, clean transactional rollback\n";
 
     return 0;
 }

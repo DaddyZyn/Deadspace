@@ -214,8 +214,6 @@ int test_binary_parsing_and_scanning(const std::string& dll_path) {
 }
 
 int main(int argc, char* argv[]) {
-    std::cout << "========== [ DEADSPACE UNIT TEST SUITE ] ==========\n";
-
     if (test_rel_math() != 0) return 1;
     if (test_bridge_synthesis() != 0) return 1;
     if (test_insn_decoder_and_prologue() != 0) return 1;
@@ -225,6 +223,6 @@ int main(int argc, char* argv[]) {
         if (test_binary_parsing_and_scanning(argv[1]) != 0) return 1;
     }
 
-    std::cout << "\n[SUCCESS] ALL ADVANCED DEADSPACE TESTS PASSED WITH ZERO FAILURES!\n";
+    std::cout << "\n[+] all tests passed\n";
     return 0;
 }

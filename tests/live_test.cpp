@@ -169,21 +169,13 @@ int main() {
         return 1;
     }
 
-    // print top discovered caves
-    std::cout << "+-----+----------+------------+------------+-------+-------------------------+-------------------+\n";
-    std::cout << "| IDX | SECTION  |    RVA     |     VA     | SIZE  | TYPE                    | STATUS            |\n";
-    std::cout << "+-----+----------+------------+------------+-------+-------------------------+-------------------+\n";
     for (size_t i = 0; i < (caves.size() < 5 ? caves.size() : 5); ++i) {
         const auto& c = caves[i];
-        std::cout << "| #" << std::setw(2) << i << " | "
-                  << std::left << std::setw(8) << c.section_name << " | "
-                  << hex32(c.rva) << " | "
-                  << hex32(static_cast<uint32_t>(c.va & 0xFFFFFFFF)) << " | "
-                  << std::right << std::setw(5) << c.size << " | "
-                  << std::left << std::setw(23) << ds::cave_scanner::type_name(c.type) << " | "
-                  << (c.verified_inter_function ? "VERIFIED OUTSIDE " : "INSIDE FUNC BODY ") << "|\n";
+        std::cout << "    cave #" << i << ": " << c.section_name << " RVA " << hex32(c.rva)
+                  << " (" << hex64(c.va) << ", " << c.size << " bytes, "
+                  << ds::cave_scanner::type_name(c.type) << ")\n";
     }
-    std::cout << "+-----+----------+------------+------------+-------+-------------------------+-------------------+\n\n";
+    std::cout << "\n";
 
     // hook 1: dummy_add
     const uintptr_t fn_add_va = reinterpret_cast<uintptr_t>(&dummy_add);
@@ -324,20 +316,9 @@ int main() {
     std::cout << "[*] .text post-hook checksum (CRC32): " << hex32(post_hook_crc)
               << " (delta from baseline: " << hex32(baseline_crc ^ post_hook_crc) << ")\n\n";
 
-    // summary table
-    std::cout << "========================================================================\n";
-    std::cout << "                        VERIFICATION SUMMARY TABLE                      \n";
-    std::cout << "========================================================================\n";
-    std::cout << "+-------------------+------------+------------+-------+------------+--------+\n";
-    std::cout << "| TARGET FUNCTION   | TARGET RVA |  CAVE RVA  | STOLEN| TRAMP RVA  | RESULT |\n";
-    std::cout << "+-------------------+------------+------------+-------+------------+--------+\n";
-    std::cout << "| dummy_add         | " << hex32(fn_add_rva) << " | " << hex32(cave_add.rva) << " | "
-              << std::setw(5) << add_stolen << " | " << hex32(img.va_to_rva(hook_add->trampoline_va)) << " | [PASS] |\n";
-    std::cout << "| dummy_crypto      | " << hex32(fn_crypto_rva) << " | " << hex32(cave_crypto.rva) << " | "
-              << std::setw(5) << crypto_stolen << " | " << hex32(img.va_to_rva(hook_crypto->trampoline_va)) << " | [PASS] |\n";
-    std::cout << "+-------------------+------------+------------+-------+------------+--------+\n";
-    std::cout << "All live hooks installed, detours executed, and trampolines returned safely.\n";
-    std::cout << "Zero heap allocations, zero unbacked memory pages, CET-safe.\n";
+    std::cout << "[+] live test complete:\n"
+              << "    dummy_add:    intercepted (stolen=" << add_stolen << ", tramp=" << hex32(img.va_to_rva(hook_add->trampoline_va)) << ")\n"
+              << "    dummy_crypto: intercepted (stolen=" << crypto_stolen << ", tramp=" << hex32(img.va_to_rva(hook_crypto->trampoline_va)) << ")\n";
 
     return 0;
 }

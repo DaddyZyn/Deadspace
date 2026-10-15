@@ -44,7 +44,7 @@ if(MSVC)
     set_target_properties(live_test PROPERTIES LINK_FLAGS "/IGNORE:4078")
 endif()
 
-# advanced self test verifier (stolen_bytes > 8, rel8 widening, RIP-relative)
+# in-process self-test with live unhooking
 add_executable(self_test
     tests/self_test.cpp
     ${DS_CORE_SOURCES}
@@ -53,7 +53,7 @@ if(MSVC)
     set_target_properties(self_test PROPERTIES LINK_FLAGS "/IGNORE:4078")
 endif()
 
-# capability showcase and benchmark telemetry dashboard
+# system dll cave scan & multi-hook benchmark
 add_executable(showcase
     tests/showcase.cpp
     ${DS_CORE_SOURCES}

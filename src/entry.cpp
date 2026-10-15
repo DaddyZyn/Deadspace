@@ -23,12 +23,6 @@ static std::string hex64(uintptr_t val) {
     return ss.str();
 }
 
-static std::string hex_byte(uint8_t val) {
-    std::ostringstream ss;
-    ss << "0x" << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(val);
-    return ss.str();
-}
-
 void print_banner() {
     std::cout << "deadspace x64 in-image cave detour engine\n\n";
 }
@@ -320,55 +314,23 @@ int main(int argc, char* argv[]) {
                 return 1;
             }
 
-            std::cout << "\n================= [ HOOK SYNTHESIS SUMMARY ] =================\n"
-                      << "Target Function VA:  " << hex64(hook->hook_va) << " (RVA: " << hex32(target_rva) << ")\n"
-                      << "Alignment Cave VA:   " << hex64(hook->cave_va) << " (RVA: " << hex32(best.target_cave.rva) << ")\n"
-                      << "Detour Handler VA:   " << hex64(hook->target_va) << "\n"
-                      << "disp32 to Cave:      " << (hook->disp32_to_cave >= 0 ? "+" : "") << hex32(static_cast<uint32_t>(hook->disp32_to_cave)) << "\n"
-                      << "Stolen Bytes:        " << hook->stolen_bytes << " bytes\n"
-                      << "Total Cave Needed:   " << hook->total_cave_capacity_needed << " / " << best.target_cave.size << " bytes\n\n";
+            std::cout << "\n[+] hook synthesized:\n"
+                      << "    target:      " << hex64(hook->hook_va) << " (RVA: " << hex32(target_rva) << ")\n"
+                      << "    cave:        " << hex64(hook->cave_va) << " (RVA: " << hex32(best.target_cave.rva) << ")\n"
+                      << "    handler:     " << hex64(hook->target_va) << "\n"
+                      << "    disp32:      " << (hook->disp32_to_cave >= 0 ? "+" : "") << hex32(static_cast<uint32_t>(hook->disp32_to_cave)) << "\n"
+                      << "    stolen:      " << hook->stolen_bytes << " bytes\n"
+                      << "    cave slice:  " << hook->total_cave_capacity_needed << " / " << best.target_cave.size << " bytes\n\n";
 
-            std::cout << "1. Hook Site Patch (" << hook->hook_site_patch.size() << " bytes at " << hex64(hook->hook_va) << "):\n"
-                      << "   HEX: " << ds::bridge::hex_dump(hook->hook_site_patch) << "\n"
-                      << "   ASM: JMP rel32 " << hex64(hook->cave_va) << " [E9 <disp32>]\n\n";
-
-            std::cout << "2. Cave Bridge Payload (" << hook->cave_bridge_payload.size() << " bytes at " << hex64(hook->cave_va) << "):\n"
-                      << "   HEX: " << ds::bridge::hex_dump(hook->cave_bridge_payload) << "\n"
-                      << "   ASM: [JMP to Detour Handler " << hex64(hook->target_va) << "]\n\n";
+            std::cout << "patches:\n"
+                      << "  hook site:   " << ds::bridge::hex_dump(hook->hook_site_patch) << "  [jmp rel32 cave]\n"
+                      << "  cave bridge: " << ds::bridge::hex_dump(hook->cave_bridge_payload) << "  [jmp handler]\n";
 
             if (!hook->original_trampoline.empty()) {
-                std::cout << "3. Original Function Trampoline (" << hook->original_trampoline.size()
-                          << " bytes at " << hex64(hook->trampoline_va) << "):\n"
-                          << "   HEX: " << ds::bridge::hex_dump(hook->original_trampoline) << "\n"
-                          << "   ASM: [Relocated Prologue (" << hook->stolen_bytes << " bytes)] -> JMP (resume original at "
-                          << hex64(target_va + hook->stolen_bytes) << ")\n"
-                          << "   NOTE: Callable from hook handler to execute original function.\n";
+                std::cout << "  trampoline:  " << ds::bridge::hex_dump(hook->original_trampoline)
+                          << "  (VA: " << hex64(hook->trampoline_va) << ", resume: " << hex64(target_va + hook->stolen_bytes) << ")\n";
             }
-
-            std::cout << "\n--- C++ Array Ready-To-Paste ---\n";
-            std::cout << "const uint8_t hook_patch[] = { ";
-            for (size_t i = 0; i < hook->hook_site_patch.size(); ++i) {
-                if (i > 0) std::cout << ", ";
-                std::cout << hex_byte(hook->hook_site_patch[i]);
-            }
-            std::cout << " };\n";
-
-            std::cout << "const uint8_t cave_bridge[] = { ";
-            for (size_t i = 0; i < hook->cave_bridge_payload.size(); ++i) {
-                if (i > 0) std::cout << ", ";
-                std::cout << hex_byte(hook->cave_bridge_payload[i]);
-            }
-            std::cout << " };\n";
-
-            if (!hook->original_trampoline.empty()) {
-                std::cout << "const uint8_t original_trampoline[] = { ";
-                for (size_t i = 0; i < hook->original_trampoline.size(); ++i) {
-                    if (i > 0) std::cout << ", ";
-                    std::cout << hex_byte(hook->original_trampoline[i]);
-                }
-                std::cout << " };\n";
-            }
-            std::cout << "==============================================================\n\n";
+            std::cout << "\n";
 
             // mode a: static disk patching
             if (!patch_out_path.empty()) {
