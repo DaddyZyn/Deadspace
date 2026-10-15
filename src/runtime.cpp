@@ -54,15 +54,12 @@ std::optional<active_hook> runtime::install_in_process_hook(
     hk.hook_va = hook_va;
     hk.cave_va = cave_va;
 
-    // backup original cave bytes before writing
     hk.original_cave_bytes.resize(cave_payload.size());
     std::memcpy(hk.original_cave_bytes.data(), reinterpret_cast<const void*>(cave_va), cave_payload.size());
 
-    // backup original prologue before patching
     hk.original_prologue.resize(hook_patch.size());
     std::memcpy(hk.original_prologue.data(), reinterpret_cast<const void*>(hook_va), hook_patch.size());
 
-    // write cave payload into module alignment padding
     DWORD old_cave_prot = 0;
     if (!VirtualProtect(reinterpret_cast<LPVOID>(cave_va), cave_payload.size(), PAGE_EXECUTE_READWRITE, &old_cave_prot)) {
         return std::nullopt;
@@ -72,7 +69,7 @@ std::optional<active_hook> runtime::install_in_process_hook(
     VirtualProtect(reinterpret_cast<LPVOID>(cave_va), cave_payload.size(), old_cave_prot, &old_cave_prot);
     FlushInstructionCache(GetCurrentProcess(), reinterpret_cast<LPCVOID>(cave_va), cave_payload.size());
 
-    // atomically commit hook site via cas across first 8 bytes
+    // atomic CAS across first 8 bytes so executing threads never see a half-written instruction
     const size_t total_protect_len = (std::max)(hook_patch.size(), static_cast<size_t>(8));
     DWORD old_hook_prot = 0;
     if (!VirtualProtect(reinterpret_cast<LPVOID>(hook_va), total_protect_len, PAGE_EXECUTE_READWRITE, &old_hook_prot)) {
@@ -94,7 +91,7 @@ std::optional<active_hook> runtime::install_in_process_hook(
         current_val = prev_val;
     }
 
-    // fill trailing stolen bytes beyond 8 with nops (already unreachable)
+    // bytes past 8 are already unreachable once entry jump is committed
     if (hook_patch.size() > 8) {
         std::memcpy(
             reinterpret_cast<void*>(hook_va + 8),
@@ -192,7 +189,7 @@ bool runtime::uninstall_in_process_hook(const active_hook& hk) {
         return false;
     }
 
-    // atomically restore original prologue at hook_va
+    // CAS restore prologue bytes back to original
     const size_t total_protect_len = (std::max)(hk.original_prologue.size(), static_cast<size_t>(8));
     DWORD old_hook_prot = 0;
     if (!VirtualProtect(reinterpret_cast<LPVOID>(hk.hook_va), total_protect_len, PAGE_EXECUTE_READWRITE, &old_hook_prot)) {
@@ -225,7 +222,6 @@ bool runtime::uninstall_in_process_hook(const active_hook& hk) {
     VirtualProtect(reinterpret_cast<LPVOID>(hk.hook_va), total_protect_len, old_hook_prot, &old_hook_prot);
     FlushInstructionCache(GetCurrentProcess(), reinterpret_cast<LPCVOID>(hk.hook_va), total_protect_len);
 
-    // restore pre-padding bytes if hotpatched
     if (hk.is_hotpatch && hk.hotpatch_pre_va != 0 && !hk.original_pre_bytes.empty()) {
         DWORD old_pre_prot = 0;
         if (VirtualProtect(reinterpret_cast<LPVOID>(hk.hotpatch_pre_va), hk.original_pre_bytes.size(), PAGE_EXECUTE_READWRITE, &old_pre_prot)) {
@@ -235,7 +231,7 @@ bool runtime::uninstall_in_process_hook(const active_hook& hk) {
         }
     }
 
-    // restore original cave padding bytes
+    // zero/restore cave bytes so unbacked scanning finds clean padding
     DWORD old_cave_prot = 0;
     if (!VirtualProtect(reinterpret_cast<LPVOID>(hk.cave_va), hk.original_cave_bytes.size(), PAGE_EXECUTE_READWRITE, &old_cave_prot)) {
         return false;

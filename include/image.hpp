@@ -41,30 +41,24 @@ struct function_range {
 class image {
 public:
     image() = default;
-    ~image() = default;
-
-    image(const image&) = default;
-    image& operator=(const image&) = default;
-    image(image&&) noexcept = default;
-    image& operator=(image&&) noexcept = default;
 
     static std::optional<image> load_file(const std::string& path);
     static std::optional<image> load_memory(HMODULE mod);
     static std::optional<image> load_buffer(std::vector<uint8_t> buffer, uintptr_t base_address = 0, bool is_memory_layout = false);
 
-    [[nodiscard]] bool valid() const { return valid_; }
-    [[nodiscard]] uintptr_t base() const { return base_address_; }
-    [[nodiscard]] bool is_in_memory() const { return from_memory_; }
-    [[nodiscard]] size_t size() const { return total_size_; }
-    [[nodiscard]] const std::vector<section_info>& sections() const { return sections_; }
-    [[nodiscard]] const std::vector<export_symbol>& exports() const { return exports_; }
-    [[nodiscard]] const std::vector<function_range>& functions() const { return functions_; }
+    bool valid() const { return valid_; }
+    uintptr_t base() const { return base_address_; }
+    bool is_in_memory() const { return from_memory_; }
+    size_t size() const { return total_size_; }
+    const std::vector<section_info>& sections() const { return sections_; }
+    const std::vector<export_symbol>& exports() const { return exports_; }
+    const std::vector<function_range>& functions() const { return functions_; }
 
-    [[nodiscard]] const uint8_t* raw_view() const {
+    const uint8_t* raw_view() const {
         return from_memory_ ? mem_ptr_ : disk_buffer_.data();
     }
 
-    [[nodiscard]] uint8_t* raw_view_mut() {
+    uint8_t* raw_view_mut() {
         return from_memory_ ? const_cast<uint8_t*>(mem_ptr_) : disk_buffer_.data();
     }
 
@@ -91,14 +85,14 @@ public:
     std::optional<section_info> find_section_by_rva(uint32_t rva) const;
     std::optional<section_info> find_section(const std::string& name) const;
 
-    // checks if range intersects any .pdata function bounds
+    // check if range intersects runtime exception tables (.pdata)
     bool is_inside_function(uint32_t rva, size_t size) const;
 
-    // checks if rva is a verified function boundary or preceded by int3 padding
+    // true if rva is a func boundary or preceded by 0xcc padding
     bool is_at_function_end(uint32_t rva) const;
 
-    [[nodiscard]] const std::vector<uint8_t>& buffer() const { return disk_buffer_; }
-    [[nodiscard]] std::vector<uint8_t>& buffer_mut() { return disk_buffer_; }
+    const std::vector<uint8_t>& buffer() const { return disk_buffer_; }
+    std::vector<uint8_t>& buffer_mut() { return disk_buffer_; }
 
 private:
     bool parse();

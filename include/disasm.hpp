@@ -240,7 +240,7 @@ struct disasm {
         return insn;
     }
 
-    // grab whole instructions covering at least min_bytes
+    // decode whole instructions covering at least min_bytes
     static inline std::vector<decoded_instruction> decode_prologue(const uint8_t* code, size_t max_len, size_t min_bytes = 5) {
         std::vector<decoded_instruction> out;
         if (!code || max_len < min_bytes) return out;
@@ -255,7 +255,7 @@ struct disasm {
         return out;
     }
 
-    // fast prologue length calculation without metadata tracking
+    // measure stolen bytes without keeping instruction structures
     static inline size_t measure_prologue(const uint8_t* code, size_t max_len, size_t min_bytes = 5) {
         if (!code || max_len < min_bytes) return min_bytes;
 

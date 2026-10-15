@@ -63,7 +63,7 @@ bool image::parse() {
     const uint8_t* view = raw_view();
     if (!view || total_size_ < sizeof(IMAGE_DOS_HEADER)) return false;
 
-    // dos header sanity check
+    // mz check
     const auto* dos_hdr = this->dos();
     if (!dos_hdr || dos_hdr->e_magic != IMAGE_DOS_SIGNATURE) return false;
 
@@ -71,11 +71,11 @@ bool image::parse() {
         return false;
     }
 
-    // nt signature check
+    // pe\0\0 check
     const auto* nt_hdr = this->nt();
     if (!nt_hdr || nt_hdr->Signature != IMAGE_NT_SIGNATURE) return false;
 
-    // drop 32-bit binaries, we only care about x64
+    // x64 only, drop pe32
     if (nt_hdr->OptionalHeader.Magic != IMAGE_NT_OPTIONAL_HDR64_MAGIC) {
         return false;
     }
@@ -115,7 +115,7 @@ bool image::parse() {
         sections_.push_back(info);
     }
 
-    // index .pdata exception directory for function bounds
+    // grab .pdata runtime function bounds
     functions_.clear();
     const auto& exc_dir = nt_hdr->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXCEPTION];
     if (exc_dir.VirtualAddress && exc_dir.Size) {
@@ -135,7 +135,7 @@ bool image::parse() {
                 }
             }
 
-            // sort by begin_rva for binary search
+            // sort begin_rva for bsearch
             std::sort(functions_.begin(), functions_.end(), [](const auto& a, const auto& b) {
                 return a.begin_rva < b.begin_rva;
             });
@@ -150,7 +150,7 @@ bool image::parse() {
         }
     }
 
-    // parse exports and flag forwarder strings
+    // parse export table + filter forwarders
     exports_.clear();
     const auto& exp_dir = nt_hdr->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT];
     if (exp_dir.VirtualAddress && exp_dir.Size) {
@@ -158,8 +158,8 @@ bool image::parse() {
         if (exp_offset != 0 && exp_offset + sizeof(IMAGE_EXPORT_DIRECTORY) <= total_size_) {
             const auto* exp = reinterpret_cast<const IMAGE_EXPORT_DIRECTORY*>(view + exp_offset);
 
-            constexpr uint32_t kMaxExportCount = 0x00FFFFFF;
-            if (exp->NumberOfNames <= kMaxExportCount && exp->NumberOfFunctions <= kMaxExportCount &&
+            constexpr uint32_t max_exports = 0x00FFFFFF;
+            if (exp->NumberOfNames <= max_exports && exp->NumberOfFunctions <= max_exports &&
                 exp->NumberOfNames > 0 && exp->NumberOfFunctions > 0) {
 
                 const uint32_t names_off = from_memory_ ? exp->AddressOfNames : rva_to_file_offset(exp->AddressOfNames);
@@ -248,7 +248,7 @@ std::span<const uint8_t> image::get_section_bytes(const section_info& sec, bool 
     if (!view) return {};
 
     if (from_memory_) {
-        // in memory: grab mapped virtual page tail up to 4KB page boundary
+        // in-memory image: section tail is padded to 4k page alignment
         size_t len = sec.virtual_size;
         if (sec.virtual_size > 0) {
             size_t page_aligned = (sec.virtual_size + 0xFFF) & ~static_cast<size_t>(0xFFF);
@@ -360,7 +360,7 @@ bool image::is_inside_function(uint32_t rva, size_t size) const {
 bool image::is_at_function_end(uint32_t rva) const {
     if (rva == 0) return false;
 
-    // match against .pdata function end bounds via binary search
+    // bsearch end_rvas
     if (!end_rvas_.empty()) {
         auto it = std::lower_bound(end_rvas_.begin(), end_rvas_.end(), rva);
         if (it != end_rvas_.end() && *it == rva) {
@@ -368,7 +368,7 @@ bool image::is_at_function_end(uint32_t rva) const {
         }
     }
 
-    // fallback: check for preceding 0xCC 0xCC int3 padding
+    // fallback: look for preceding 0xcc padding
     if (rva >= 2) {
         const uint8_t* view = raw_view();
         if (view) {

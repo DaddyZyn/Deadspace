@@ -22,11 +22,10 @@ struct reachable_cave {
 };
 
 struct rel {
-    // 5-byte rel32 jump: e9 <disp32>
-    static constexpr size_t kRel32JmpSize = 5;
+    static constexpr size_t rel32_jmp_size = 5;
 
     // delta = target - (source + insn_len)
-    static inline rel32_result calc(uintptr_t from, uintptr_t to, size_t insn_len = kRel32JmpSize) {
+    static inline rel32_result calc(uintptr_t from, uintptr_t to, size_t insn_len = rel32_jmp_size) {
         const int64_t delta = static_cast<int64_t>(to) - static_cast<int64_t>(from + insn_len);
         const bool fits = (delta >= INT32_MIN && delta <= INT32_MAX);
         return { delta, static_cast<int32_t>(delta), fits };
@@ -36,7 +35,7 @@ struct rel {
     static inline std::vector<reachable_cave> filter_reachable(
         const std::vector<cave>& caves,
         uintptr_t hook_site_va,
-        size_t required_capacity = kRel32JmpSize
+        size_t required_capacity = rel32_jmp_size
     ) {
         std::vector<reachable_cave> out;
         out.reserve(caves.size());

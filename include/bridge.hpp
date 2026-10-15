@@ -36,10 +36,10 @@ struct two_stage_hook {
 };
 
 struct bridge {
-    static constexpr size_t kRel32JmpSize = 5;
-    static constexpr size_t kAbs64JmpSize = 14;
-    static constexpr size_t kRegIndirectSize = 12;
-    static constexpr size_t kStackPivotSize = 16;
+    static constexpr size_t rel32_jmp_size = 5;
+    static constexpr size_t abs64_jmp_size = 14;
+    static constexpr size_t reg_indirect_size = 12;
+    static constexpr size_t stack_pivot_size = 16;
 
     static size_t payload_size(bridge_type type);
 

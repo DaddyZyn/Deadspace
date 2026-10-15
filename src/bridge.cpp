@@ -8,11 +8,11 @@ namespace ds {
 
 size_t bridge::payload_size(bridge_type type) {
     switch (type) {
-        case bridge_type::rel32_jmp:      return kRel32JmpSize;
-        case bridge_type::abs64_indirect: return kAbs64JmpSize;
-        case bridge_type::reg_indirect:   return kRegIndirectSize;
-        case bridge_type::stack_pivot:    return kStackPivotSize;
-        default:                          return kAbs64JmpSize;
+        case bridge_type::rel32_jmp:      return rel32_jmp_size;
+        case bridge_type::abs64_indirect: return abs64_jmp_size;
+        case bridge_type::reg_indirect:   return reg_indirect_size;
+        case bridge_type::stack_pivot:    return stack_pivot_size;
+        default:                          return abs64_jmp_size;
     }
 }
 
@@ -66,7 +66,7 @@ std::optional<two_stage_hook> bridge::synthesize_two_stage(
     bridge_type cave_bridge,
     const uint8_t* pre_code_ptr
 ) {
-    const auto res = rel::calc(hook_site_va, cave_va, kRel32JmpSize);
+    const auto res = rel::calc(hook_site_va, cave_va, rel32_jmp_size);
     if (!res.in_range) {
         return std::nullopt;
     }
@@ -77,7 +77,6 @@ std::optional<two_stage_hook> bridge::synthesize_two_stage(
     hook.target_va = destination_va;
     hook.disp32_to_cave = res.disp32;
 
-    // bridge payload inside cave jumping to handler
     if (cave_bridge == bridge_type::abs64_indirect) {
         hook.cave_bridge_payload = emit_abs64_jmp(destination_va);
     } else if (cave_bridge == bridge_type::reg_indirect) {
@@ -85,12 +84,12 @@ std::optional<two_stage_hook> bridge::synthesize_two_stage(
     } else if (cave_bridge == bridge_type::stack_pivot) {
         hook.cave_bridge_payload = emit_stack_pivot(destination_va);
     } else {
-        const auto c2t = rel::calc(cave_va, destination_va, kRel32JmpSize);
+        const auto c2t = rel::calc(cave_va, destination_va, rel32_jmp_size);
         if (!c2t.in_range) return std::nullopt;
         hook.cave_bridge_payload = emit_rel32_jmp(c2t.disp32);
     }
 
-    // check 5-byte cc/90 padding right before hook site (hook_va - 5)
+    // msvc hotpatch padding: 5 bytes of 0xcc or 0x90 right before function entry
     bool has_hotpatch_padding = false;
     if (pre_code_ptr) {
         has_hotpatch_padding = true;
@@ -102,9 +101,8 @@ std::optional<two_stage_hook> bridge::synthesize_two_stage(
         }
     }
 
-    const size_t min_hook_bytes = (has_hotpatch_padding) ? 2 : kRel32JmpSize;
+    const size_t min_hook_bytes = (has_hotpatch_padding) ? 2 : rel32_jmp_size;
 
-    // decode stolen prologue instructions
     const bool can_build_trampoline = (original_code_ptr != nullptr && available_code_len >= min_hook_bytes);
     size_t stolen_bytes = min_hook_bytes;
     std::vector<decoded_instruction> prologue_insns;
@@ -225,7 +223,7 @@ std::optional<two_stage_hook> bridge::synthesize_two_stage(
     // append resume jump back to hook_site_va + stolen_bytes
     const uintptr_t resume_target_va = hook_site_va + stolen_bytes;
     const uintptr_t resume_jump_src_va = tramp_va + tramp.size();
-    const auto resume_rel = rel::calc(resume_jump_src_va, resume_target_va, kRel32JmpSize);
+    const auto resume_rel = rel::calc(resume_jump_src_va, resume_target_va, rel32_jmp_size);
 
     if (resume_rel.in_range) {
         // 5-byte relative jump back to remainder of original function

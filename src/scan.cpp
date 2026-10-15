@@ -19,33 +19,17 @@ const char* cave_scanner::type_name(cave_type t) {
 size_t cave_scanner::match_nop_sequence(const uint8_t* p, size_t remaining) {
     if (remaining == 0) return 0;
 
-    // standard 1-byte nop
+    // standard intel multi-byte nops (1 to 9 bytes)
     if (p[0] == 0x90) return 1;
-
-    // 2-byte: 66 90
     if (remaining >= 2 && p[0] == 0x66 && p[1] == 0x90) return 2;
-
-    // 3-byte: 0F 1F 00
     if (remaining >= 3 && p[0] == 0x0F && p[1] == 0x1F && p[2] == 0x00) return 3;
-
-    // 4-byte: 0F 1F 40 00
     if (remaining >= 4 && p[0] == 0x0F && p[1] == 0x1F && p[2] == 0x40 && p[3] == 0x00) return 4;
-
-    // 5-byte: 0F 1F 44 00 00
     if (remaining >= 5 && p[0] == 0x0F && p[1] == 0x1F && p[2] == 0x44 && p[3] == 0x00 && p[4] == 0x00) return 5;
-
-    // 6-byte: 66 0F 1F 44 00 00
     if (remaining >= 6 && p[0] == 0x66 && p[1] == 0x0F && p[2] == 0x1F && p[3] == 0x44 && p[4] == 0x00 && p[5] == 0x00) return 6;
-
-    // 7-byte: 0F 1F 80 00 00 00 00
     if (remaining >= 7 && p[0] == 0x0F && p[1] == 0x1F && p[2] == 0x80 &&
         p[3] == 0x00 && p[4] == 0x00 && p[5] == 0x00 && p[6] == 0x00) return 7;
-
-    // 8-byte: 0F 1F 84 00 00 00 00 00
     if (remaining >= 8 && p[0] == 0x0F && p[1] == 0x1F && p[2] == 0x84 &&
         p[3] == 0x00 && p[4] == 0x00 && p[5] == 0x00 && p[6] == 0x00 && p[7] == 0x00) return 8;
-
-    // 9-byte: 66 0F 1F 84 00 00 00 00 00
     if (remaining >= 9 && p[0] == 0x66 && p[1] == 0x0F && p[2] == 0x1F && p[3] == 0x84 &&
         p[4] == 0x00 && p[5] == 0x00 && p[6] == 0x00 && p[7] == 0x00 && p[8] == 0x00) return 9;
 
@@ -126,7 +110,7 @@ std::vector<cave> cave_scanner::find_caves(const image& img, const scan_options&
             const size_t start = i;
             const uint8_t target_byte = b;
 
-            // 64-bit word splat optimization without strict-aliasing ub
+            // fastpath 8-byte splat check
             const uint64_t splat = 0x0101010101010101ULL * target_byte;
             while (i + 8 <= total) {
                 uint64_t chunk = 0;
@@ -155,13 +139,11 @@ std::vector<cave> cave_scanner::find_caves(const image& img, const scan_options&
 
                 bool verified = !inside_func;
                 if (sec.is_executable && ct == cave_type::null_padding) {
-                    // null padding in .text must sit at function end or in virtual slack
                     if (!at_func_end && !is_slack) {
                         verified = false;
                     }
                 }
 
-                // drop anything that overlaps .pdata
                 if (opt.check_pdata) {
                     if (inside_func) continue;
                     if (sec.is_executable && ct == cave_type::null_padding && !verified) {
@@ -215,7 +197,7 @@ std::optional<cave> cave_allocator::allocate(uintptr_t target_va, size_t require
     allocated_cave.section_name = c.section_name;
     allocated_cave.verified_inter_function = c.verified_inter_function;
 
-    // advance cave metadata with 16-byte alignment to keep icache happy
+    // advance cave metadata with 16-byte alignment for icache
     const size_t aligned_consumed = (required_bytes + (alignment - 1)) & ~(alignment - 1);
     if (c.size > aligned_consumed) {
         c.rva += static_cast<uint32_t>(aligned_consumed);
@@ -223,7 +205,6 @@ std::optional<cave> cave_allocator::allocate(uintptr_t target_va, size_t require
         c.va += aligned_consumed;
         c.size -= aligned_consumed;
     } else {
-        // cave is fully drained
         caves_.erase(caves_.begin() + best_idx);
     }
 
